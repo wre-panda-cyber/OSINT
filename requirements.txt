@@ -1,0 +1,7 @@
+Flask>=3.0
+requests>=2.31
+phonenumbers>=8.13
+dnspython>=2.4
+Pillow>=10.0
+exifread>=3.0
+geopy>=2.4

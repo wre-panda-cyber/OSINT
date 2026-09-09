@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OSINT Hub · Plateforme centrale de recherche</title>
+<style>
+  :root{
+    --bg:#0a0e1a; --panel:#111827; --panel2:#0f172a; --border:#1f2937;
+    --text:#e5e7eb; --muted:#94a3b8; --accent:#22d3ee; --accent2:#a78bfa;
+    --ok:#34d399; --warn:#fbbf24; --err:#f87171; --link:#38bdf8;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:'Inter','Segoe UI',system-ui,sans-serif;
+    background:radial-gradient(1200px 600px at 80% -10%, #15233b 0%, transparent 60%),var(--bg);
+    color:var(--text); min-height:100vh;
+  }
+  a{color:#38bdf8;text-decoration:none}
+  a:hover{text-decoration:underline}
+  header{
+    padding:18px 26px; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; gap:14px; background:rgba(10,14,26,.7);
+    backdrop-filter:blur(8px); position:sticky; top:0; z-index:10;
+  }
+  header .logo{font-size:22px;font-weight:800;letter-spacing:.5px}
+  header .logo span{color:var(--accent)}
+  header .tag{color:var(--muted);font-size:13px;margin-left:6px}
+  header .right{margin-left:auto;display:flex;gap:10px;align-items:center}
+  header .pill{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:4px 10px;border-radius:999px}
+  main{max-width:1180px;margin:0 auto;padding:22px 22px 60px}
+  .hero{margin:6px 0 18px}
+  .hero h1{font-size:30px;margin:8px 0 4px;font-weight:800}
+  .hero p{color:var(--muted);max-width:720px;line-height:1.5;margin:0}
+
+  /* central search card */
+  .search-card{
+    background:linear-gradient(180deg, rgba(34,211,238,.05), transparent),var(--panel);
+    border:1px solid var(--border); border-radius:16px; padding:18px;
+    box-shadow:0 10px 40px rgba(0,0,0,.4);
+  }
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  @media(max-width:760px){.grid-2,.grid-3{grid-template-columns:1fr}}
+  label{display:block;font-size:12px;color:var(--muted);margin:0 0 4px;letter-spacing:.3px;text-transform:uppercase}
+  input,select,button,textarea{
+    width:100%; background:var(--panel2); border:1px solid var(--border);
+    color:var(--text); padding:11px 12px; border-radius:10px; font-size:14px;
+    outline:none; transition:border .15s;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+  .btn-row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+  button.primary{
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    color:#04121a;font-weight:700;border:none;cursor:pointer;padding:12px 22px;
+    flex:1; min-width:180px;
+  }
+  button.primary:disabled{opacity:.6;cursor:wait}
+  button.ghost{background:transparent;border:1px solid var(--border);color:var(--text);cursor:pointer;padding:12px 18px}
+  .tabs{display:flex;gap:6px;margin:18px 0 14px;flex-wrap:wrap}
+  .tab{padding:8px 14px;border-radius:8px 8px 0 0;border:1px solid var(--border);background:var(--panel2);cursor:pointer;font-size:13px;color:var(--muted)}
+  .tab.active{background:var(--panel);color:var(--text);border-bottom-color:var(--panel)}
+
+  /* tools panel */
+  .tools{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:6px}
+  .tool{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px}
+  .tool h4{margin:0 0 4px;font-size:14px}
+  .tool .cat{font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px}
+  .tool p{margin:6px 0 8px;font-size:12.5px;color:var(--muted);line-height:1.45}
+  .cat-filter{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .cat-filter .chip{font-size:12px;padding:5px 11px;border:1px solid var(--border);border-radius:999px;cursor:pointer;color:var(--muted)}
+  .cat-filter .chip.on{background:var(--accent);color:#04121a;border-color:var(--accent)}
+
+  /* photo upload */
+  .drop{
+    border:2px dashed var(--border);border-radius:12px;padding:22px;text-align:center;color:var(--muted);cursor:pointer;transition:.15s;
+  }
+  .drop:hover,.drop.over{border-color:var(--accent);color:var(--text);background:rgba(34,211,238,.05)}
+  .drop input{display:none}
+  .preview{max-width:160px;max-height:160px;border-radius:10px;margin-top:10px;border:1px solid var(--border)}
+
+  /* results */
+  .results{margin-top:18px}
+  .module{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
+  .module h3{margin:0 0 10px;display:flex;align-items:center;gap:8px;font-size:15px}
+  .badge{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted)}
+  .badge.ok{color:var(--ok);border-color:var(--ok)}
+  .badge.err{color:var(--err);border-color:var(--err)}
+  .badge.time{color:var(--muted)}
+  pre{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px;overflow:auto;font-size:12px;max-height:340px}
+  .kvs{display:grid;grid-template-columns:160px 1fr;gap:4px 12px;font-size:13px}
+  .kvs .k{color:var(--muted)}
+  ul.accounts{list-style:none;padding:0;margin:8px 0;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  @media(max-width:620px){ul.accounts{grid-template-columns:1fr}}
+  .acct{display:flex;justify-content:space-between;gap:8px;border:1px solid var(--border);border-radius:8px;padding:7px 9px;font-size:12.5px}
+  .acct.yes{border-color:rgba(52,211,153,.4)}
+  .acct .st{font-size:11px;color:var(--muted)}
+  .acct.yes .st{color:var(--ok)}
+  .acct.no .st{color:var(--err)}
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .hidden{display:none}
+  .muted{color:var(--muted)}
+  .map-wrap{margin-top:10px;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
+  footer{margin-top:40px;color:var(--muted);font-size:12px;text-align:center;border-top:1px solid var(--border);padding:18px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">OSINT<span>·HUB</span></div>
+  <div class="tag">plateforme centrale de recherche open-source</div>
+  <div class="right">
+    <span class="pill">🔍 {{ tools|length }} outils intégrés</span>
+    <span class="pill">Ⓒ usage éthique & légal uniquement</span>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <h1>Un point central pour toute investigation OSINT</h1>
+    <p>Renseignez un <b>nom / prénom</b>, un <b>numéro de téléphone</b>, une <b>adresse email</b>, un <b>site internet</b>,
+       ou uploadez une <b>photo</b> pour en extraire les métadonnées EXIF/GPS. L'interface interroge simultanément
+       les modules OSINT open-source et calcule les <b>positions et horaires des astres</b> pour toute coordonnée GPS.</p>
+  </div>
+
+  <!-- Central search -->
+  <div class="search-card">
+    <div class="grid-2">
+      <div>
+        <label>Prénom</label>
+        <input id="first_name" placeholder="ex. Jean">
+      </div>
+      <div>
+        <label>Nom</label>
+        <input id="last_name" placeholder="ex. Dupont">
+      </div>
+    </div>
+    <div class="grid-3" style="margin-top:10px">
+      <div>
+        <label>Téléphone</label>
+        <input id="phone" placeholder="+33 6 12 34 56 78">
+      </div>
+      <div>
+        <label>Email</label>
+        <input id="email" placeholder="jean.dupont@example.com">
+      </div>
+      <div>
+        <label>Site internet</label>
+        <input id="website" placeholder="example.com">
+      </div>
+    </div>
+    <div class="grid-2" style="margin-top:10px">
+      <div>
+        <label>Pseudo / Username (optionnel)</label>
+        <input id="username" placeholder="jdupont">
+      </div>
+      <div>
+        <label>Outils à activer</label>
+        <select id="scope">
+          <option value="all">Tous les modules concernés</option>
+        </select>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="primary" id="searchBtn">🔎 Lancer la recherche sur tous les outils</button>
+      <button class="ghost" id="clearBtn">Effacer</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" data-tab="results">Résultats</div>
+    <div class="tab" data-tab="photo">📷 Photo / EXIF / GPS</div>
+    <div class="tab" data-tab="astro">🌟 Astronomie / Astres</div>
+    <div class="tab" data-tab="tools">🛠️ Outils intégrés</div>
+  </div>
+
+  <!-- Results tab -->
+  <section id="tab-results">
+    <div id="resultsIntro" class="muted">Aucune recherche lancée. Renseignez au moins un critère puis cliquez sur « Lancer la recherche ».</div>
+    <div class="results" id="results"></div>
+  </section>
+
+  <!-- Photo tab -->
+  <section id="tab-photo" class="hidden">
+    <div class="search-card">
+      <label>Uploader une photo (JPG / PNG / TIFF) — extraction EXIF + GPS + reverse geocoding</label>
+      <div class="drop" id="drop">
+        <input type="file" id="photoFile" accept="image/*">
+        <div id="dropText">Glissez une image ici, ou cliquez pour sélectionner</div>
+        <img id="preview" class="preview hidden">
+      </div>
+      <div class="btn-row">
+        <button class="primary" id="photoBtn">Analyser la photo</button>
+      </div>
+    </div>
+    <div class="results" id="photoResults"></div>
+  </section>
+
+  <!-- Astronomy tab -->
+  <section id="tab-astro" class="hidden">
+    <div class="search-card">
+      <div class="grid-3">
+        <div>
+          <label>Latitude</label>
+          <input id="astroLat" placeholder="48.8566">
+        </div>
+        <div>
+          <label>Longitude</label>
+          <input id="astroLon" placeholder="2.3522">
+        </div>
+        <div>
+          <label>Date / heure (UTC, optionnel)</label>
+          <input id="astroDate" placeholder="2025-01-15T14:30">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="primary" id="astroBtn">🌟 Calculer positions & horaires des astres</button>
+        <button class="ghost" id="astroFromGps" title="Utiliser le GPS extrait d'une photo">Utiliser le GPS de la dernière photo</button>
+      </div>
+    </div>
+    <div class="results" id="astroResults"></div>
+  </section>
+
+  <!-- Tools tab -->
+  <section id="tab-tools" class="hidden">
+    <p class="muted" style="margin:4px 0 12px">Catalogue des outils open-source et services web exposés par cette plateforme. Chaque outil ouvre son dépôt/service officiel.</p>
+    <div class="cat-filter" id="catFilter"></div>
+    <div class="tools" id="toolsGrid"></div>
+  </section>
+</main>
+
+<footer>
+  OSINT Hub — agrégateur d'outils open-source. Utilisation réservée à la recherche légale, à la cybersécurité défensive et à l'éducation.
+  Respectez le RGPD et les lois locales avant toute investigation sur des personnes.
+</footer>
+
+<script>
+const TOOLS = {{ tools|tojson }};
+const CATS = {{ categories|tojson }};
+let lastGps = null;
+
+/* tabs */
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.querySelectorAll('section[id^="tab-"]').forEach(s=>s.classList.add('hidden'));
+    document.getElementById('tab-'+t.dataset.tab).classList.remove('hidden');
+  });
+});
+
+/* tools grid + filters */
+function renderTools(cat=null){
+  const grid=document.getElementById('toolsGrid'); grid.innerHTML='';
+  TOOLS.filter(t=>!cat||t.category===cat).forEach(t=>{
+    const el=document.createElement('div'); el.className='tool';
+    el.innerHTML=`<div class="cat">${t.category}</div>
+      <h4><a href="${t.url}" target="_blank" rel="noopener">${t.name}</a></h4>
+      <p>${t.desc}</p>`;
+    grid.appendChild(el);
+  });
+}
+const cf=document.getElementById('catFilter');
+['Tous',...CATS].forEach((c,i)=>{
+  const chip=document.createElement('span'); chip.className='chip'+(i===0?' on':'');
+  chip.textContent=c; chip.dataset.cat=i===0?'':c;
+  chip.onclick=()=>{
+    cf.querySelectorAll('.chip').forEach(x=>x.classList.remove('on')); chip.classList.add('on');
+    renderTools(chip.dataset.cat);
+  };
+  cf.appendChild(chip);
+});
+renderTools();
+
+/* search */
+async function runSearch(){
+  const body={
+    first_name:val('first_name'), last_name:val('last_name'),
+    phone:val('phone'), email:val('email'), website:val('website'), username:val('username')
+  };
+  if(!Object.values(body).some(x=>x&&x.trim())){
+    alert('Renseignez au moins un critère de recherche.'); return;
+  }
+  const btn=document.getElementById('searchBtn'); btn.disabled=true;
+  const old=btn.textContent; btn.innerHTML='<span class="spinner"></span> Recherche en cours...';
+  document.getElementById('resultsIntro').classList.add('hidden');
+  const out=document.getElementById('results'); out.innerHTML='';
+  try{
+    const r=await fetch('/api/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j=await r.json();
+    if(!j.ok){ out.innerHTML=errBox(j.error||'Erreur'); return; }
+    renderSearchResults(j.results);
+  }catch(e){ out.innerHTML=errBox(e.message); }
+  finally{ btn.disabled=false; btn.textContent=old; }
+}
+document.getElementById('searchBtn').onclick=runSearch;
+document.getElementById('clearBtn').onclick=()=>{
+  ['first_name','last_name','phone','email','website','username'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('results').innerHTML='';
+  document.getElementById('resultsIntro').classList.remove('hidden');
+};
+
+function val(id){return document.getElementById(id).value.trim()}
+
+function errBox(msg){return `<div class="module"><h3>Erreur <span class="badge err">échec</span></h3><pre>${esc(msg)}</pre></div>`}
+
+function renderSearchResults(res){
+  const out=document.getElementById('results');
+  const q=res.query;
+  out.appendChild(moduleHeader('Cible',null,res.started_at));
+  out.appendChild(kvBox('Requête', {
+    'Nom complet':q.name_full||'—','Téléphone':q.phone||'—','Email':q.email||'—',
+    'Site':q.website||'—','Username':q.username||'—'
+  }));
+  ['name','email','phone','website'].forEach(k=>{
+    if(res[k]) out.appendChild(renderModule(k,res[k]));
+  });
+}
+
+function moduleHeader(title,ok,time){
+  const d=document.createElement('div'); d.className='module';
+  let badge = ok===null? '': `<span class="badge ${ok?'ok':'err'}">${ok?'ok':'erreur'}</span>`;
+  d.innerHTML=`<h3>${title} ${badge} ${time?`<span class="badge time">${time.split('T')[1]||''}</span>`:''}</h3>`;
+  return d;
+}
+
+function renderModule(key,data){
+  const d=document.createElement('div'); d.className='module';
+  const labels={name:'Identité / Réseaux',email:'Email',phone:'Téléphone',website:'Site web'};
+  const ok = data.ok!==false;
+  let html=`<h3>${labels[key]||key} <span class="badge ${ok?'ok':'err'}">${ok?'ok':'erreur'}</span> <span class="badge time">${data.elapsed_ms||0} ms</span></h3>`;
+  if(!ok){ html+=`<pre>${esc(data.error||'échec')}</pre>`; d.innerHTML=html; return d; }
+
+  if(key==='name'){
+    if(data.is_name){
+      html+=`<div class="muted" style="margin-bottom:6px">Username principal: <b>${esc(data.primary_username)}</b></div>`;
+      if(data.email_permutations?.length) html+=`<div class="muted">Permutations email possibles: ${data.email_permutations.length}</div>`;
+    }
+    if(data.accounts?.length){
+      html+='<ul class="accounts">';
+      data.accounts.forEach(a=>{
+        const cls=a.present===true?'yes':a.present===false?'no':'';
+        const st=a.present===true?'✓ présent':a.present===false?'✕ absent':'? incertain';
+        html+=`<li class="acct ${cls}"><a href="${a.url}" target="_blank" rel="noopener">${esc(a.platform)}</a><span class="st">${st} (${a.status??'-'})</span></li>`;
+      });
+      html+='</ul>';
+    }
+    if(data.email_permutations?.length){
+      html+=`<details><summary class="muted">Voir les ${data.email_permutations.length} permutations email</summary><pre>${esc(data.email_permutations.join('\n'))}</pre></details>`;
+    }
+  }
+  if(key==='email'){
+    if(data.summary?.length) html+=`<div class="muted">Résumé: ${esc(data.summary.join(' · '))}</div>`;
+    html+=kvHtml({Local:data.local,Domaine:data.domain,'MX':(data.mx||[]).map(x=>x.exchange||JSON.stringify(x)).join(', ')||'—','A':(data.a||[]).join(', ')||'—','Gravatar':data.gravatar?.has_avatar?'✓ '+`<a href="${data.gravatar.profile_url}" target=_blank>profil</a>`:'non', 'HIBP':data.hibp?.suffix_match?'⚠ suffixe en fuite':'non/indispo'});
+    if(data.gravatar?.has_avatar) html+=`<div><img src="${data.gravatar.avatar_url}" style="width:64px;border-radius:8px;margin-top:8px;border:1px solid var(--border)"></div>`;
+    html+=links(data.dorks);
+  }
+  if(key==='phone'){
+    if(data.summary?.length) html+=`<div class="muted">Résumé: ${esc(data.summary.join(' · '))}</div>`;
+    html+=kvHtml({'E.164':data.e164,International:data.international,National:data.national,Région:data.region,Pays:data.country,Opérateur:data.carrier||'—',Type:data.line_type,Fuseaux:(data.timezones||[]).join(', ')||'—'});
+    html+=links(data.lookups);
+  }
+  if(key==='website'){
+    if(data.summary?.length) html+=`<div class="muted">Résumé: ${esc(data.summary.join(' · '))}</div>`;
+    const h=data.http||{};
+    html+=kvHtml({Hôte:data.host,'Titre':h.title||'—','Statut HTTP':h.status??'—','Serveur':h.server||'—','Powered-By':h.powered_by||'—','Technos':(h.technologies_hint||[]).join(', ')||'—','URL finale':h.final_url||'—'});
+    html+=kvHtml({'DNS A':(data.dns?.A||[]).join(', ')||'—','AAAA':(data.dns?.AAAA||[]).join(', ')||'—','NS':(data.dns?.NS||[]).join(', ')||'—','MX':(data.dns?.MX||[]).join(', ')||'—','CNAME':(data.dns?.CNAME||[]).join(', ')||'—'});
+    if(h.security_headers) html+=kvHtml({'HSTS':h.security_headers.strict_transport_security?'✓':'✕','CSP':h.security_headers.content_security_policy?'✓':'✕','X-Frame':h.security_headers.x_frame_options||'✕','X-Content-Type':h.security_headers.x_content_type_options?'✓':'✕'});
+    html+=links(data.lookups);
+  }
+  d.innerHTML=html; return d;
+}
+
+function kvHtml(obj){
+  let rows='';
+  for(const k in obj) rows+=`<div class="k">${esc(k)}</div><div>${obj[k]===0?'0':(obj[k]||'—')}</div>`;
+  return `<div class="kvs" style="margin-top:8px">${rows}</div>`;
+}
+function kvBox(title,obj){
+  const d=document.createElement('div'); d.className='module';
+  d.innerHTML=`<h3>${title}</h3>${kvHtml(obj)}`;
+  return d;
+}
+function links(arr){
+  if(!arr||!arr.length) return '';
+  let html='<div style="margin-top:10px"><div class="muted" style="font-size:12px;margin-bottom:4px">Outils externes :</div>';
+  arr.forEach(l=>{ html+=`<a href="${l.url}" target="_blank" rel="noopener" style="margin-right:8px;font-size:12.5px">↗ ${esc(l.engine)}</a>`; });
+  html+='</div>'; return html;
+}
+function esc(s){return String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+
+/* PHOTO */
+const drop=document.getElementById('drop'), fileInput=document.getElementById('photoFile'), preview=document.getElementById('preview');
+let photoData=null;
+drop.addEventListener('click',()=>fileInput.click());
+['dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over')}));
+drop.addEventListener('dragleave',()=>drop.classList.remove('over'));
+drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('over');handleFile(e.dataTransfer.files[0])});
+fileInput.addEventListener('change',e=>handleFile(e.target.files[0]));
+function handleFile(f){ if(!f) return; photoData=f;
+  document.getElementById('dropText').textContent=f.name+' · '+(f.size/1024).toFixed(1)+' KB';
+  const r=new FileReader(); r.onload=()=>{preview.src=r.result;preview.classList.remove('hidden')}; r.readAsDataURL(f);
+}
+document.getElementById('photoBtn').onclick=async()=>{
+  if(!photoData){ alert('Sélectionnez une image.'); return; }
+  const btn=document.getElementById('photoBtn'); btn.disabled=true; const old=btn.textContent; btn.innerHTML='<span class="spinner"></span> Analyse...';
+  const out=document.getElementById('photoResults'); out.innerHTML='';
+  const fd=new FormData(); fd.append('photo',photoData);
+  try{
+    const r=await fetch('/api/photo',{method:'POST',body:fd}); const j=await r.json();
+    if(!j.ok){ out.innerHTML=errBox(j.error); return; }
+    renderPhoto(j.results);
+  }catch(e){ out.innerHTML=errBox(e.message); }
+  finally{ btn.disabled=false; btn.textContent=old; }
+};
+function renderPhoto(info){
+  const out=document.getElementById('photoResults'); out.innerHTML='';
+  const m=document.createElement('div'); m.className='module';
+  let html=`<h3>Analyse photo <span class="badge ${info.ok!==false?'ok':'err'}">${info.ok!==false?'ok':'erreur'}</span> <span class="badge time">${info.elapsed_ms||0} ms</span></h3>`;
+  if(info.summary?.length) html+=`<div class="muted">Résumé: ${esc(info.summary.join(' · '))}</div>`;
+  html+=kvHtml({Fichier:info.filename,Taille:`${(info.size_bytes/1024).toFixed(1)} KB`,Format:info.format||'—',Dimensions:`${info.width||'?'}×${info.height||'?'}`,EXIF:info.has_exif?'présent':'aucun'});
+  if(info.exif && Object.keys(info.exif).length) html+=`<div style="margin-top:8px"><div class="muted">Métadonnées EXIF</div>${kvHtml(info.exif)}</div>`;
+  if(info.gps){
+    lastGps=info.gps;
+    html+=`<div style="margin-top:10px"><div class="muted">Localisation GPS</div>${kvHtml({'Latitude':info.gps.latitude,'Longitude':info.gps.longitude})}</div>`;
+    html+=`<div class="map-wrap"><iframe src="${info.gps.maps_osm}" width="100%" height="280" style="border:0"></iframe></div>`;
+    if(info.gps.reverse?.address) html+=`<div style="margin-top:6px">📍 ${esc(info.gps.reverse.address)}</div>`;
+    html+=`<div style="margin-top:8px"><a href="${info.gps.maps_google}" target=_blank>↗ Google Maps</a> · <a href="${info.gps.maps_osm}" target=_blank>↗ OpenStreetMap</a> · <button class="ghost" style="width:auto;display:inline-block;padding:6px 12px;margin-top:6px" onclick="astroFromGps()">🌟 Calculer les astres pour ce lieu</button></div>`;
+  }
+  m.innerHTML=html; out.appendChild(m);
+  if(info.exif && Object.keys(info.exif).length){
+    const full=document.createElement('details'); full.innerHTML=`<summary class="muted">Toutes les métadonnées EXIF brutes</summary><pre>${esc(JSON.stringify(info.exif,null,2))}</pre>`;
+    out.appendChild(full);
+  }
+}
+
+/* ASTRONOMY */
+document.getElementById('astroBtn').onclick=async()=>{
+  const lat=parseFloat(document.getElementById('astroLat').value);
+  const lon=parseFloat(document.getElementById('astroLon').value);
+  const date=document.getElementById('astroDate').value;
+  if(isNaN(lat)||isNaN(lon)){ alert('Latitude et longitude requises.'); return; }
+  const btn=document.getElementById('astroBtn'); btn.disabled=true; const old=btn.textContent; btn.innerHTML='<span class="spinner"></span> Calcul...';
+  const out=document.getElementById('astroResults'); out.innerHTML='';
+  try{
+    const r=await fetch('/api/astronomy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lat,lon,date})});
+    const j=await r.json();
+    if(!j.ok){ out.innerHTML=errBox(j.error); return; }
+    renderAstro(j.results);
+  }catch(e){ out.innerHTML=errBox(e.message); }
+  finally{ btn.disabled=false; btn.textContent=old; }
+};
+document.getElementById('astroFromGps').onclick=astroFromGps;
+function astroFromGps(){
+  if(!lastGps){ alert('Analysez d\'abord une photo avec GPS (onglet Photo).'); return; }
+  document.getElementById('astroLat').value=lastGps.latitude;
+  document.getElementById('astroLon').value=lastGps.longitude;
+  document.querySelector('.tab[data-tab="astro"]').click();
+}
+function renderAstro(a){
+  const out=document.getElementById('astroResults'); out.innerHTML='';
+  const m=document.createElement('div'); m.className='module';
+  let html=`<h3>Astronomie <span class="badge ok">ok</span> <span class="badge time">${a.elapsed_ms||0} ms</span></h3>`;
+  if(a.sky_summary?.length) html+=`<div class="muted">Résumé: ${esc(a.sky_summary.join(' · '))}</div>`;
+  html+=kvHtml({'Lieu':`${a.location.lat}, ${a.location.lon}`,'Date UTC':a.datetime_utc,'Jour Julien':a.julian_day,'Temps sidéral local (h)':a.local_sidereal_time_hours});
+  html+=`<div style="margin-top:10px"><div class="muted">Soleil</div>${kvHtml({'Lever':a.sun.rise||'—','Transit':a.sun.transit||'—','Coucher':a.sun.set||'—','Altitude':a.sun.altitude_deg+'°','Diurne':a.sun.is_day?'oui':'non'})}</div>`;
+  html+=`<div style="margin-top:10px"><div class="muted">Lune</div>${kvHtml({'Altitude':a.moon.altitude_deg+'°','Phase':a.moon.phase.name,'Illumination':(a.moon.phase.illumination*100)+'%','Âge':a.moon.phase.age_days+' j','Au-dessus horizon':a.moon.above_horizon?'oui':'non'})}</div>`;
+  if(a.planets?.length){
+    html+='<div style="margin-top:10px"><div class="muted">Planètes</div><ul class="accounts">';
+    a.planets.forEach(p=>{
+      const cls=p.visible?'yes':'no';
+      html+=`<li class="acct ${cls}">${esc(p.body)}<span class="st">${p.altitude_deg}° az ${p.azimuth_deg}° ${p.visible?'visible':''}</span></li>`;
+    });
+    html+='</ul></div>';
+  }
+  m.innerHTML=html; out.appendChild(m);
+}
+</script>
+</body>
+</html>
