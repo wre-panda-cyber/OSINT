@@ -30,6 +30,12 @@ outils open-source de recherche par **nom / prénom**, **téléphone**, **email*
   Calcul maison basé sur les algorithmes NOAA / Meeus (aucune dépendance lourde).
 - 🛠️ **Catalogue d'outils** : panneau listant 30 outils/services open-source par
   catégorie, chacun pointant vers son dépôt GitHub officiel.
+- ⚡ **Exécution réelle des outils CLI** : onglet « Outils CLI externes » qui pilote
+  Sherlock, Maigret, Holehe et PhoneInfoga installés sur le serveur via subprocess,
+  parse leur sortie et l'affiche de façon structurée. Détection automatique de la
+  disponibilité (✅/❌) avec repli gracieux si l'outil n'est pas installé.
+- 📄 **Export de rapport** : boutons « Exporter rapport (JSON) » et « Exporter rapport
+  (PDF) » générant un document complet de l'investigation (cible, modules, photo, astres).
 
 ## Démarrage rapide
 
@@ -39,6 +45,11 @@ python app.py
 # -> http://127.0.0.1:5000
 ```
 
+Pour activer l'exécution réelle des outils CLI externes (optionnel) :
+```bash
+pip install sherlock-project maigret holehe phoneinfoga
+```
+
 ## API
 
 | Endpoint | Méthode | Body | Description |
@@ -46,7 +57,9 @@ python app.py
 | `/api/search` | POST | `{first_name,last_name,phone,email,website,username}` | Recherche multi-modules |
 | `/api/photo` | POST | `multipart/form-data` champ `photo` | Analyse EXIF/GPS |
 | `/api/astronomy` | POST | `{lat,lon,date?}` | Positions & horaires des astres |
-| `/api/tools` | GET | — | Catalogue des outils intégrés |
+| `/api/external` | POST | `{tool,value}` | Exécute un outil CLI (sherlock/maigret/holehe/phoneinfoga) |
+| `/api/report` | POST | `{format:json|pdf, query, results, photo?, astronomy?}` | Télécharge le rapport |
+| `/api/tools` | GET | — | Catalogue + disponibilité des outils |
 
 ## Architecture
 
@@ -55,6 +68,7 @@ app.py                      # Serveur Flask + routes API
 osint_hub/
   core.py                   # Normalisation des entrées, safe_get
   registry.py               # Catalogue des outils open-source
+  report.py                 # Génération de rapport JSON + PDF
   modules/
     name_osint.py           # Nom / username / permutations email / sondes plateformes
     email_osint.py          # MX, Gravatar, HIBP, dorks
@@ -62,6 +76,7 @@ osint_hub/
     web_osint.py            # DNS + HTTP meta + lookups
     photo_osint.py          # EXIF + GPS + reverse geocoding
     astronomy.py            # Soleil / Lune / planètes (calcul maison)
+    external_tools.py       # Exécution subprocess Sherlock/Maigret/Holehe/PhoneInfoga
 templates/index.html        # Interface web (single page)
 ```
 

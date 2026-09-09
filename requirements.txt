@@ -5,3 +5,6 @@ dnspython>=2.4
 Pillow>=10.0
 exifread>=3.0
 geopy>=2.4
+fpdf2>=2.7
+# Optional real OSINT CLI tools (auto-detected if installed):
+#   pip install sherlock-project maigret holehe phoneinfoga

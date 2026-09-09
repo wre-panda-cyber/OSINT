@@ -13,10 +13,11 @@ from datetime import datetime, timezone
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
 
-from osint_hub import core
+from osint_hub import core, report
 from osint_hub.modules import (
     astronomy,
     email_osint,
+    external_tools,
     name_osint,
     phone_osint,
     photo_osint,
@@ -41,7 +42,53 @@ def index():
 
 @app.route("/api/tools")
 def api_tools():
-    return jsonify({"tools": list_tools(), "categories": list_categories()})
+    return jsonify({
+        "tools": list_tools(),
+        "categories": list_categories(),
+        "runnable": external_tools.RUNNABLE,
+        "availability": external_tools.availability(),
+    })
+
+
+@app.route("/api/external", methods=["POST"])
+def api_external():
+    """Run a real OSINT CLI tool (sherlock/maigret/holehe/phoneinfoga)."""
+    data = request.get_json(silent=True) or {}
+    tool_id = (data.get("tool") or "").strip()
+    value = (data.get("value") or "").strip()
+    if not tool_id or not value:
+        return jsonify({"ok": False, "error": "Paramètres tool et value requis."}), 400
+    started = time.time()
+    result = external_tools.run(tool_id, value)
+    result["elapsed_ms"] = int((time.time() - started) * 1000)
+    return jsonify({"ok": result.get("ok", False), "results": result})
+
+
+@app.route("/api/report", methods=["POST"])
+def api_report():
+    """Build and download a report (JSON or PDF) from the last investigation."""
+    data = request.get_json(silent=True) or {}
+    fmt = (data.get("format") or "json").lower()
+    query = data.get("query") or {}
+    results = data.get("results") or {}
+    photo = data.get("photo")
+    astro = data.get("astronomy")
+    rep = report.build_report(query, results, photo=photo, astro=astro)
+    if fmt == "pdf":
+        try:
+            pdf_bytes = report.to_pdf(rep)
+        except Exception as exc:  # noqa: BLE001
+            return jsonify({"ok": False, "error": f"PDF: {exc}"}), 500
+        from flask import Response
+        resp = Response(pdf_bytes, mimetype="application/pdf")
+        resp.headers["Content-Disposition"] = 'attachment; filename="osint_report.pdf"'
+        return resp
+    # default JSON
+    body = report.to_json(rep)
+    from flask import Response
+    resp = Response(body.encode("utf-8"), mimetype="application/json")
+    resp.headers["Content-Disposition"] = 'attachment; filename="osint_report.json"'
+    return resp
 
 
 def _run_module(module, query, **extra):

@@ -172,12 +172,17 @@
     <div class="tab active" data-tab="results">Résultats</div>
     <div class="tab" data-tab="photo">📷 Photo / EXIF / GPS</div>
     <div class="tab" data-tab="astro">🌟 Astronomie / Astres</div>
-    <div class="tab" data-tab="tools">🛠️ Outils intégrés</div>
+    <div class="tab" data-tab="external">⚡ Outils CLI externes</div>
+    <div class="tab" data-tab="tools">🛠️ Catalogue</div>
   </div>
 
   <!-- Results tab -->
   <section id="tab-results">
     <div id="resultsIntro" class="muted">Aucune recherche lancée. Renseignez au moins un critère puis cliquez sur « Lancer la recherche ».</div>
+    <div class="btn-row" id="exportRow" style="display:none">
+      <button class="ghost" id="exportJson">⬇ Exporter rapport (JSON)</button>
+      <button class="ghost" id="exportPdf">⬇ Exporter rapport (PDF)</button>
+    </div>
     <div class="results" id="results"></div>
   </section>
 
@@ -227,6 +232,28 @@
     <p class="muted" style="margin:4px 0 12px">Catalogue des outils open-source et services web exposés par cette plateforme. Chaque outil ouvre son dépôt/service officiel.</p>
     <div class="cat-filter" id="catFilter"></div>
     <div class="tools" id="toolsGrid"></div>
+  </section>
+
+  <!-- External tools tab -->
+  <section id="tab-external" class="hidden">
+    <p class="muted" style="margin:4px 0 10px">Exécution réelle des outils OSINT open-source installés sur le serveur (Sherlock, Maigret, Holehe, PhoneInfoga). La valeur est déduite des critères renseignés ci-dessus.</p>
+    <div id="extAvailability" class="muted" style="margin-bottom:10px;font-size:12px"></div>
+    <div class="search-card">
+      <div class="grid-2">
+        <div>
+          <label>Outil</label>
+          <select id="extTool"></select>
+        </div>
+        <div>
+          <label>Valeur (username / email / téléphone)</label>
+          <input id="extValue" placeholder="octocat">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="primary" id="extRun">⚡ Lancer l'outil CLI</button>
+      </div>
+    </div>
+    <div class="results" id="extResults"></div>
   </section>
 </main>
 
@@ -476,6 +503,107 @@ function renderAstro(a){
   }
   m.innerHTML=html; out.appendChild(m);
 }
+
+/* ===== EXTERNAL CLI TOOLS ===== */
+let RUNNABLE=[]; let lastResults=null; let lastPhoto=null; let lastAstro=null;
+async function loadExternal(){
+  try{
+    const t=await fetch('/api/tools').then(r=>r.json());
+    RUNNABLE=t.runnable||[];
+    const av=t.availability||{};
+    const sel=document.getElementById('extTool'); sel.innerHTML='';
+    RUNNABLE.forEach(r=>{
+      const o=document.createElement('option'); o.value=r.id; o.textContent=r.label;
+      o.disabled=!av[r.id]; if(!av[r.id]) o.textContent+=' (non installé)';
+      sel.appendChild(o);
+    });
+    const avTxt=document.getElementById('extAvailability');
+    avTxt.innerHTML='Disponibilité : ' + RUNNABLE.map(r=>`${r.label.split(' ')[0]} ${av[r.id]?'\u2705':'\u274c'}`).join(' \u00b7 ');
+  }catch(e){ console.error(e); }
+}
+loadExternal();
+document.querySelector('.tab[data-tab="external"]').addEventListener('click',()=>{
+  const u=val('username')||val('first_name')||val('last_name');
+  const emailV=val('email'), phoneV=val('phone');
+  const sel=document.getElementById('extTool');
+  const target=RUNNABLE.find(r=>r.id===sel.value)?.target;
+  if(target==='email') document.getElementById('extValue').value=emailV||u;
+  else if(target==='phone') document.getElementById('extValue').value=phoneV;
+  else document.getElementById('extValue').value=u;
+});
+document.getElementById('extTool').addEventListener('change',()=>document.querySelector('.tab[data-tab="external"]').click());
+
+document.getElementById('extRun').onclick=async()=>{
+  const tool=document.getElementById('extTool').value;
+  const value=document.getElementById('extValue').value.trim();
+  if(!value){ alert('Renseignez une valeur.'); return; }
+  const btn=document.getElementById('extRun'); btn.disabled=true; const old=btn.textContent;
+  btn.innerHTML='<span class="spinner"></span> Exécution en cours...';
+  const out=document.getElementById('extResults'); out.innerHTML='';
+  try{
+    const r=await fetch('/api/external',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tool,value})});
+    const j=await r.json();
+    renderExternal(j.results);
+    if(j.ok){ lastResults = lastResults || {}; lastResults.external = lastResults.external || {}; lastResults.external[tool]=j.results; }
+  }catch(e){ out.innerHTML=errBox(e.message); }
+  finally{ btn.disabled=false; btn.textContent=old; }
+};
+function renderExternal(res){
+  const out=document.getElementById('extResults'); out.innerHTML='';
+  const m=document.createElement('div'); m.className='module';
+  const ok=res.ok!==false;
+  let html=`<h3>${esc(res.tool||'outil')} <span class="badge ${ok?'ok':'err'}">${ok?'exécuté':'erreur'}</span> <span class="badge time">${res.elapsed_ms||0} ms</span></h3>`;
+  if(!ok){
+    html+=`<div class="muted">Non disponible : ${esc(res.error||'')}</div>`;
+    html+=`<div class="muted" style="margin-top:8px;font-size:12px">Installez l'outil pour l'activer :</div>`;
+    const cmds={sherlock:'pip install sherlock-project',maigret:'pip install maigret',holehe:'pip install holehe',phoneinfoga:'pip install phoneinfoga'};
+    if(cmds[res.tool]) html+=`<pre>${cmds[res.tool]}</pre>`;
+    m.innerHTML=html; out.appendChild(m); return;
+  }
+  if(res.accounts?.length){
+    html+=`<div class="muted">${res.count} comptes trouvés</div><ul class="accounts">`;
+    res.accounts.forEach(a=>{ html+=`<li class="acct yes"><a href="${a.url}" target=_blank rel=noopener>${esc(a.platform)}</a><span class="st">${esc(a.url)}</span></li>`; });
+    html+='</ul>';
+  }
+  if(res.used_on?.length){
+    html+=`<div class="muted">Email utilisé sur (${res.count}) :</div><ul class="accounts">`;
+    res.used_on.forEach(s=>{ html+=`<li class="acct yes">${esc(s)}</li>`; });
+    html+='</ul>';
+  }
+  if(res.sections){
+    for(const k in res.sections){ if(res.sections[k].length){ html+=`<div class="muted" style="margin-top:6px">${esc(k)}</div><pre>${esc(res.sections[k].join('\\n'))}</pre>`; } }
+  }
+  if(res.raw_excerpt){
+    html+=`<details><summary class="muted">Sortie brute</summary><pre>${esc(res.raw_excerpt)}</pre></details>`;
+  }
+  m.innerHTML=html; out.appendChild(m);
+}
+
+/* ===== EXPORT ===== */
+function exportPayload(){
+  const query={ first_name:val('first_name'), last_name:val('last_name'), phone:val('phone'), email:val('email'), website:val('website'), username:val('username') };
+  const name_full=[query.first_name,query.last_name].filter(Boolean).join(' '); query.name_full=name_full;
+  return { query, results: lastResults||{}, photo: lastPhoto, astronomy: lastAstro };
+}
+function downloadBlob(blob, filename){
+  const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url);
+}
+document.getElementById('exportJson').onclick=async()=>{
+  const r=await fetch('/api/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...exportPayload(),format:'json'})});
+  if(!r.ok){ alert('Échec export JSON'); return; }
+  downloadBlob(await r.blob(),'osint_report.json');
+};
+document.getElementById('exportPdf').onclick=async()=>{
+  const r=await fetch('/api/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...exportPayload(),format:'pdf'})});
+  if(!r.ok){ const t=await r.text(); alert('Échec export PDF: '+t); return; }
+  downloadBlob(await r.blob(),'osint_report.pdf');
+};
+const _origRender=renderSearchResults;
+renderSearchResults=function(res){ lastResults=res; document.getElementById('exportRow').style.display='flex'; _origRender(res); };
+const _origRenderPhoto=renderPhoto;
+renderPhoto=function(info){ lastPhoto=info; _origRenderPhoto(info); };
+const _origRenderAstro=renderAstro;
+renderAstro=function(a){ lastAstro=a; _origRenderAstro(a); };
 </script>
 </body>
 </html>
