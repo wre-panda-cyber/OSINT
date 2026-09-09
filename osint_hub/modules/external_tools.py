@@ -24,6 +24,13 @@ import shutil
 import subprocess
 
 
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _strip_ansi(text):
+    return ANSI_RE.sub("", text)
+
+
 FOUND_RE = re.compile(r"^\[\+\]\s+(?P<name>[^:]+):\s*(?P<url>\S+)")
 
 
@@ -166,12 +173,149 @@ def run_phoneinfoga(number, timeout=90):
             "raw_excerpt": out[-2000:] if out else err}
 
 
+def _parse_socialscan(text):
+    """Parse socialscan tabular output: Platform<TAB>Status lines.
+
+    socialscan emits a header, then lines like:
+        repusseau\n--------\nGitLab\tAvailable, Taken/Reserved, Invalid, Error\n...
+    Each platform row lists a status per query.
+    """
+    hits = []
+    lines = [l for l in text.splitlines() if l.strip()]
+    for line in lines:
+        # rows are "Platform<TAB>Status" possibly repeated per query
+        parts = line.split("\t")
+        if len(parts) >= 2 and any(k in parts[-1] for k in ("Available", "Taken", "Reserved", "Invalid", "Error")):
+            platform = parts[0].strip()
+            status = parts[-1].strip()
+            available = "Available" in status
+            hits.append({"platform": platform, "status": status, "available": available})
+    return hits
+
+
+def run_socialscan(query, timeout=120):
+    """socialscan checks email/username usage on ~8 platforms with deep verification.
+
+    Unlike simple HTTP probes, socialscan uses platform APIs / proper checks,
+    so it has very few false positives. Supports both usernames and emails.
+    """
+    if not query:
+        return {"ok": False, "tool": "socialscan", "error": "requête vide"}
+    if not _which("socialscan"):
+        return {"ok": False, "available": False, "tool": "socialscan",
+                "error": "socialscan non installé (pip install socialscan)"}
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        rc, out, err = _run(["socialscan", "--show-urls", "--available-only", query], timeout, cwd=td)
+    parsed = _parse_socialscan(out)
+    return {"ok": True, "available": True, "tool": "socialscan", "query": query,
+            "returncode": rc, "results": parsed, "count": len(parsed),
+            "raw_excerpt": out[-1500:] if out else err}
+
+
+def _parse_dnstwist(text):
+    """Parse dnstwist domain-permutation table output.
+
+    Columns are space-separated: type domain IP [IPv6] NS:... MX:...
+    """
+    rows = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("*") or "Domain name permutation" in line:
+            continue
+        cols = line.split()
+        if len(cols) >= 2:
+            rows.append({
+                "type": cols[0], "domain": cols[1],
+                "ip": cols[2] if len(cols) > 2 and not cols[2].startswith("NS:") else "",
+                "ns": next((c[3:] for c in cols if c.startswith("NS:")), ""),
+                "mx": next((c[3:] for c in cols if c.startswith("MX:")), ""),
+            })
+    return rows
+
+
+def run_dnstwist(domain, timeout=120):
+    """dnstwist detects typosquatting / homograph variants of a domain."""
+    if not domain:
+        return {"ok": False, "tool": "dnstwist", "error": "domaine vide"}
+    if not _which("dnstwist"):
+        return {"ok": False, "available": False, "tool": "dnstwist",
+                "error": "dnstwist non installé (pip install dnstwist)"}
+    host = domain.replace("https://", "").replace("http://", "").split("/")[0].lstrip("www.")
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        rc, out, err = _run(["dnstwist", "-r", "-t", "5", host], timeout, cwd=td)
+    parsed = _parse_dnstwist(out)
+    return {"ok": True, "available": True, "tool": "dnstwist", "domain": host,
+            "returncode": rc, "domains": parsed, "count": len(parsed),
+            "raw_excerpt": out[-2000:] if out else err}
+
+
+def _parse_h8mail(text):
+    """Parse h8mail session recap: target | status table."""
+    text = _strip_ansi(text)
+    targets = []
+    for line in text.splitlines():
+        line = line.strip()
+        if "|" in line and ("Compromised" in line or "Not Compromised" in line or "Found" in line):
+            parts = [p.strip() for p in line.split("|") if p.strip()]
+            if len(parts) >= 2:
+                targets.append({"target": parts[0], "status": parts[1]})
+    return targets
+
+
+def run_h8mail(email, timeout=120):
+    """h8mail hunts for password breaches associated with an email.
+
+    Without local breach files or API keys it returns a Not Compromised status,
+    but the runner exposes the tool so users with breach data can use it.
+    """
+    if not email:
+        return {"ok": False, "tool": "h8mail", "error": "email vide"}
+    if not _which("h8mail"):
+        return {"ok": False, "available": False, "tool": "h8mail",
+                "error": "h8mail non installé (pip install h8mail)"}
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        rc, out, err = _run(["h8mail", "-t", email], timeout, cwd=td)
+    parsed = _parse_h8mail(out)
+    return {"ok": True, "available": True, "tool": "h8mail", "email": email,
+            "returncode": rc, "breaches": parsed, "count": len(parsed),
+            "raw_excerpt": out[-2000:] if out else err}
+
+
+def run_instaloader(username, timeout=60):
+    """Instaloader can download public Instagram profile metadata (no login).
+
+    Used here in dry/probe mode to check if a public Instagram profile exists.
+    """
+    if not username:
+        return {"ok": False, "tool": "instaloader", "error": "username vide"}
+    if not _which("instaloader"):
+        return {"ok": False, "available": False, "tool": "instaloader",
+                "error": "instaloader non installé (pip install instaloader)"}
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        rc, out, err = _run(["instaloader", "--no-pictures", "--no-videos",
+                             "--no-captions", "--no-metadata-json", "--dirname-pattern", td,
+                             username], timeout, cwd=td)
+    # exit code 0 with a profile dir => exists; non-zero with specific message
+    exists = rc == 0
+    return {"ok": True, "available": True, "tool": "instaloader", "username": username,
+            "returncode": rc, "instagram_exists": exists,
+            "raw_excerpt": (out + err)[-1500:]}
+
+
 # registry of runnable tools for the UI
 RUNNABLE = [
     {"id": "sherlock", "target": "username", "label": "Sherlock (400+ plateformes)"},
     {"id": "maigret", "target": "username", "label": "Maigret (2500+ sites, dossier)"},
+    {"id": "socialscan", "target": "username", "label": "socialscan (vérif. approfondie, peu de faux positifs)"},
+    {"id": "instaloader", "target": "username", "label": "Instaloader (profil Instagram public)"},
     {"id": "holehe", "target": "email", "label": "Holehe (email enregistré ?)"},
+    {"id": "h8mail", "target": "email", "label": "h8mail (fuites de mot de passe)"},
     {"id": "phoneinfoga", "target": "phone", "label": "PhoneInfoga (scan avancé)"},
+    {"id": "dnstwist", "target": "website", "label": "DNSTwist (typosquatting de domaine)"},
 ]
 
 
@@ -183,8 +327,12 @@ def run(tool_id, value):
     dispatch = {
         "sherlock": run_sherlock,
         "maigret": run_maigret,
+        "socialscan": run_socialscan,
+        "instaloader": run_instaloader,
         "holehe": run_holehe,
+        "h8mail": run_h8mail,
         "phoneinfoga": run_phoneinfoga,
+        "dnstwist": run_dnstwist,
     }
     fn = dispatch.get(tool_id)
     if not fn:

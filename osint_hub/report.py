@@ -135,6 +135,19 @@ def _render_external(pdf, tool, res):
         pdf.cell(0, 6, f"     {len(res['accounts'])} comptes trouvés", ln=True)
         for a in res["accounts"][:50]:
             pdf.cell(0, 6, f"       {a.get('platform')}: {a.get('url')}", ln=True)
+    if res.get("results"):  # socialscan
+        pdf.cell(0, 6, f"     {len(res['results'])} résultats (socialscan)", ln=True)
+        for a in res["results"][:50]:
+            pdf.cell(0, 6, f"       {a.get('platform')}: {a.get('status')}", ln=True)
+    if res.get("domains"):  # dnstwist
+        pdf.cell(0, 6, f"     {len(res['domains'])} variants de domaine", ln=True)
+        for d in res["domains"][:50]:
+            pdf.cell(0, 6, f"       {d.get('domain')} ({d.get('type')}) {d.get('ip','')}", ln=True)
+    if res.get("breaches"):
+        for b in res["breaches"]:
+            pdf.cell(0, 6, f"       {b.get('target')}: {b.get('status')}", ln=True)
+    if res.get("instagram_exists") is not None:
+        pdf.cell(0, 6, f"     Instagram public: {'existant' if res['instagram_exists'] else 'introuvable'}", ln=True)
     if res.get("used_on"):
         pdf.cell(0, 6, f"     Email utilisé sur: {', '.join(res['used_on'])}", ln=True)
     if res.get("count") is not None:

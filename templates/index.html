@@ -556,7 +556,7 @@ function renderExternal(res){
   if(!ok){
     html+=`<div class="muted">Non disponible : ${esc(res.error||'')}</div>`;
     html+=`<div class="muted" style="margin-top:8px;font-size:12px">Installez l'outil pour l'activer :</div>`;
-    const cmds={sherlock:'pip install sherlock-project',maigret:'pip install maigret',holehe:'pip install holehe',phoneinfoga:'pip install phoneinfoga'};
+    const cmds={sherlock:'pip install sherlock-project',maigret:'pip install maigret',socialscan:'pip install socialscan',instaloader:'pip install instaloader',holehe:'pip install holehe',h8mail:'pip install h8mail',phoneinfoga:'pip install phoneinfoga',dnstwist:'pip install dnstwist'};
     if(cmds[res.tool]) html+=`<pre>${cmds[res.tool]}</pre>`;
     m.innerHTML=html; out.appendChild(m); return;
   }
@@ -564,6 +564,24 @@ function renderExternal(res){
     html+=`<div class="muted">${res.count} comptes trouvés</div><ul class="accounts">`;
     res.accounts.forEach(a=>{ html+=`<li class="acct yes"><a href="${a.url}" target=_blank rel=noopener>${esc(a.platform)}</a><span class="st">${esc(a.url)}</span></li>`; });
     html+='</ul>';
+  }
+  if(res.results?.length){  /* socialscan */
+    html+=`<div class="muted">${res.count} résultats (vérification approfondie)</div><ul class="accounts">`;
+    res.results.forEach(a=>{ html+=`<li class="acct ${a.available?'yes':'no'}">${esc(a.platform)}<span class="st">${esc(a.status)}</span></li>`; });
+    html+='</ul>';
+  }
+  if(res.domains?.length){  /* dnstwist */
+    html+=`<div class="muted">${res.count} variants de domaine trouvés</div><ul class="accounts">`;
+    res.domains.slice(0,40).forEach(d=>{ html+=`<li class="acct yes"><a href="http://${d.domain}" target=_blank rel=noopener>${esc(d.domain)}</a><span class="st">${esc(d.type)} ${d.ip?'· '+d.ip:''} ${d.ns?'· NS '+d.ns:''}</span></li>`; });
+    html+='</ul>';
+  }
+  if(res.breaches?.length){  /* h8mail */
+    html+=`<div class="muted">Résultats fuite :</div><ul class="accounts">`;
+    res.breaches.forEach(b=>{ const c=b.status.includes('Not Compromised')?'no':'yes'; html+=`<li class="acct ${c}">${esc(b.target)}<span class="st">${esc(b.status)}</span></li>`; });
+    html+='</ul>';
+  }
+  if(res.instagram_exists!==undefined){  /* instaloader */
+    html+=`<div class="muted">Profil Instagram public : ${res.instagram_exists?'<b style="color:var(--ok)">existant</b>':'<b style="color:var(--err)">introuvable / privé</b>'}</div>`;
   }
   if(res.used_on?.length){
     html+=`<div class="muted">Email utilisé sur (${res.count}) :</div><ul class="accounts">`;
