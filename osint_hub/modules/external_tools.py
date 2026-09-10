@@ -177,7 +177,7 @@ def _parse_socialscan(text):
     """Parse socialscan tabular output: Platform<TAB>Status lines.
 
     socialscan emits a header, then lines like:
-        repusseau\n--------\nGitLab\tAvailable, Taken/Reserved, Invalid, Error\n...
+        username\n--------\nGitLab\tAvailable, Taken/Reserved, Invalid, Error\n...
     Each platform row lists a status per query.
     """
     hits = []

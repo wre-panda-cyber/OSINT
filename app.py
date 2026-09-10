@@ -31,6 +31,20 @@ app.config["UPLOAD_FOLDER"] = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 
+@app.after_request
+def _hardening(resp):
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    resp.headers["Content-Security-Policy"] = (
+        "default-src 'self'; img-src 'self' data: blob:; "
+        "style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'"
+    )
+    if request.is_secure:
+        resp.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return resp
+
+
 @app.route("/")
 def index():
     return render_template(

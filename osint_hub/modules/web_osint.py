@@ -48,7 +48,7 @@ def _http_meta(url):
     import requests
 
     try:
-        resp = requests.get(url, timeout=8, headers={"User-Agent": "OSINT-Hub/1.0"}, allow_redirects=True)
+        resp = requests.get(url, timeout=8, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"}, allow_redirects=True)
         out["final_url"] = resp.url
         out["server"] = resp.headers.get("Server", "")
         out["powered_by"] = resp.headers.get("X-Powered-By", "")
