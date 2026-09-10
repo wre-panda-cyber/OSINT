@@ -25,6 +25,7 @@ def build_report(query, results, photo=None, astro=None):
                 "phone": results.get("phone"),
                 "website": results.get("website"),
                 "external": results.get("external"),
+                "external_auto": results.get("external_auto"),
             }.items() if v
         },
         "photo": photo,

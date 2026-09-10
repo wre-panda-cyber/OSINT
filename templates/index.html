@@ -361,20 +361,32 @@ function renderModule(key,data){
 
   if(key==='name'){
     if(data.is_name){
-      html+=`<div class="muted" style="margin-bottom:6px">Username principal: <b>${esc(data.primary_username)}</b></div>`;
+      if(data.candidate_usernames?.length) html+=`<div class="muted" style="margin-bottom:6px">Usernames testés: <b>${data.candidate_usernames.length}</b> — ${data.candidate_usernames.map(esc).join(', ')}</div>`;
       if(data.email_permutations?.length) html+=`<div class="muted">Permutations email possibles: ${data.email_permutations.length}</div>`;
     }
-    if(data.accounts?.length){
-      html+='<ul class="accounts">';
-      data.accounts.forEach(a=>{
-        const cls=a.present===true?'yes':a.present===false?'no':'';
-        const st=a.present===true?'✓ présent':a.present===false?'✕ absent':'? incertain';
-        html+=`<li class="acct ${cls}"><a href="${a.url}" target="_blank" rel="noopener">${esc(a.platform)}</a><span class="st">${st} (${a.status??'-'})</span></li>`;
+    if(data.confirmed_accounts?.length){
+      html+=`<div class="muted" style="margin-top:6px">✓ Comptes confirmés (${data.confirmed_accounts.length})</div><ul class="accounts">`;
+      data.confirmed_accounts.forEach(a=>{
+        html+=`<li class="acct yes"><a href="${a.url}" target="_blank" rel="noopener">${esc(a.platform)}</a><span class="st">✓ présent (${a.status??'-'})</span></li>`;
       });
       html+='</ul>';
     }
+    if(data.candidate_accounts?.length){
+      html+=`<details><summary class="muted">⚠ Candidats à vérifier (${data.candidate_accounts.length})</summary><ul class="accounts">`;
+      data.candidate_accounts.forEach(a=>{
+        html+=`<li class="acct"><a href="${a.url}" target="_blank" rel="noopener">${esc(a.platform)}</a><span class="st">? à vérifier (${a.status??'-'})</span></li>`;
+      });
+      html+='</ul></details>';
+    }
+    if(!data.confirmed_accounts?.length && !data.candidate_accounts?.length && data.accounts?.length){
+      html+=`<div class="muted">Aucun compte détecté automatiquement.</div>`;
+    }
     if(data.email_permutations?.length){
       html+=`<details><summary class="muted">Voir les ${data.email_permutations.length} permutations email</summary><pre>${esc(data.email_permutations.join('\n'))}</pre></details>`;
+    }
+    if(data.search_dorks?.length){
+      html+=`<div class="muted" style="margin-top:8px">Liens de recherche (${data.search_dorks.length})</div>`;
+      html+=links(data.search_dorks);
     }
   }
   if(key==='email'){
@@ -399,6 +411,45 @@ function renderModule(key,data){
   d.innerHTML=html; return d;
 }
 
+function renderExternalAuto(ext){
+  const d=document.createElement('div'); d.className='module';
+  let html=`<h3>Outils CLI externes <span class="badge ok">auto</span></h3>`;
+  html+=`<div class="muted" style="margin-bottom:6px">Ces outils (Sherlock, Maigret, Holehe…) sont lancés automatiquement s'ils sont installés sur votre machine. Ils donnent des résultats bien plus fiables que le sondage HTTP.</div>`;
+  for(const tool in ext){
+    const r=ext[tool];
+    if(!r){ continue; }
+    if(r.available===false){
+      html+=`<div class="muted">⚠ ${esc(tool)}: ${esc(r.error||'non installé')}</div>`;
+      continue;
+    }
+    if(r.ok===false){
+      html+=`<div class="muted">⚠ ${esc(tool)}: ${esc(r.error||'échec')}</div>`;
+      continue;
+    }
+    if(r.accounts?.length){
+      html+=`<div class="muted" style="margin-top:6px">✓ ${esc(tool)}: ${r.accounts.length} compte(s) trouvé(s)</div><ul class="accounts">`;
+      r.accounts.forEach(a=>{ html+=`<li class="acct yes"><a href="${a.url}" target="_blank" rel="noopener">${esc(a.platform)}</a><span class="st">${esc(a.url)}</span></li>`; });
+      html+='</ul>';
+    } else if(r.used_on?.length){
+      html+=`<div class="muted" style="margin-top:6px">✓ ${esc(tool)}: email utilisé sur ${r.used_on.length} site(s)</div><ul class="accounts">`;
+      r.used_on.forEach(s=>{ html+=`<li class="acct yes">${esc(s)}</li>`; });
+      html+='</ul>';
+    } else if(r.breaches?.length){
+      html+=`<div class="muted" style="margin-top:6px">⚠ ${esc(tool)}: ${r.breaches.length} résultat(s) de fuite</div><ul class="accounts">`;
+      r.breaches.forEach(b=>{ html+=`<li class="acct">${esc(b.target)} — ${esc(b.status)}</li>`; });
+      html+='</ul>';
+    } else if(r.domains?.length){
+      html+=`<div class="muted" style="margin-top:6px">${esc(tool)}: ${r.domains.length} variante(s) de domaine</div>`;
+    } else if(r.instagram_exists!==undefined){
+      html+=`<div class="muted" style="margin-top:6px">${esc(tool)}: Instagram ${r.instagram_exists?'existe (public)':'introuvable/privé'}</div>`;
+    } else if(r.sections){
+      html+=`<div class="muted" style="margin-top:6px">${esc(tool)}: scan terminé</div>`;
+    } else {
+      html+=`<div class="muted" style="margin-top:6px">${esc(tool)}: ${r.count??0} résultat(s)</div>`;
+    }
+  }
+  d.innerHTML=html; return d;
+}
 function kvHtml(obj){
   let rows='';
   for(const k in obj) rows+=`<div class="k">${esc(k)}</div><div>${obj[k]===0?'0':(obj[k]||'—')}</div>`;

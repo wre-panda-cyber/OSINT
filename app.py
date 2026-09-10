@@ -148,8 +148,25 @@ def api_search():
     if target["website"]:
         results["website"] = _run_module(web_osint, target["website"])
     if target["username"]:
-        # Reuse the name module's username engine directly when only a username is given.
         results.setdefault("name", _run_module(name_osint, target["username"]))
+
+    # Auto-run real OSINT CLI tools when available, using the best target for each.
+    avail = external_tools.availability()
+    results["external_auto"] = {}
+    username_for_cli = target["username"] or (target["name_full"].split()[-1].lower()
+                                                if target["name_full"] else "")
+    if username_for_cli:
+        for tool_id in ("sherlock", "maigret", "socialscan", "instaloader"):
+            if avail.get(tool_id):
+                results["external_auto"][tool_id] = external_tools.run(tool_id, username_for_cli)
+    if target["email"]:
+        for tool_id in ("holehe", "h8mail"):
+            if avail.get(tool_id):
+                results["external_auto"][tool_id] = external_tools.run(tool_id, target["email"])
+    if target["phone"] and avail.get("phoneinfoga"):
+        results["external_auto"]["phoneinfoga"] = external_tools.run("phoneinfoga", target["phone"])
+    if target["website"] and avail.get("dnstwist"):
+        results["external_auto"]["dnstwist"] = external_tools.run("dnstwist", target["website"])
 
     results["finished_at"] = datetime.now(timezone.utc).isoformat()
     return jsonify({"ok": True, "results": results})
