@@ -93,16 +93,26 @@ python app.py
 # -> Running on http://127.0.0.1:5000
 ```
 
+> **⚠️ macOS (port 5000 déjà pris) :** le port 5000 est utilisé par le *AirPlay
+> Receiver* d'Apple (réception AirPlay). L'application ne pourra pas démarrer dessus.
+> Utilisez un autre port :
+>
+> ```bash
+> PORT=5005 python app.py
+> # -> Running on http://127.0.0.1:5005
+> ```
+>
+> Alternativement, vous pouvez désactiver le AirPlay Receiver dans
+> *Réglages Système → Général → AirDrop et Continuité → Récepteur AirPlay*.
+
 ### 5. Ouvrir l'interface dans le navigateur
 
-Ouvrez votre navigateur (Safari, Chrome, Firefox…) à l'adresse :
+Ouvrez votre navigateur (Safari, Chrome, Firefox…) à l'adresse affichée dans le terminal :
 
-# 🌐 http://127.0.0.1:5000
+- par défaut : 🌐 **http://127.0.0.1:5000**
+- si vous avez changé de port (ex: 5005) : 🌐 **http://127.0.0.1:5005**
 
 C'est là que vous effectuez vos recherches OSINT.
-
-> Sur macOS, si le port 5000 est occupé (AirPlay Receiver), utilisez un autre port :
-> `PORT=5005 python app.py` puis ouvrez `http://127.0.0.1:5005`
 
 ### Activer les outils CLI externes (optionnel mais recommandé)
 
