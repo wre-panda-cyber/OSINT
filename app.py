@@ -13,10 +13,12 @@ from datetime import datetime, timezone
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
 
-from osint_hub import core
+from osint_hub import core, report
 from osint_hub.modules import (
     astronomy,
+    company_osint,
     email_osint,
+    external_tools,
     name_osint,
     phone_osint,
     photo_osint,
@@ -30,6 +32,20 @@ app.config["UPLOAD_FOLDER"] = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 
+@app.after_request
+def _hardening(resp):
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    resp.headers["Content-Security-Policy"] = (
+        "default-src 'self'; img-src 'self' data: blob:; "
+        "style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'"
+    )
+    if request.is_secure:
+        resp.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return resp
+
+
 @app.route("/")
 def index():
     return render_template(
@@ -41,7 +57,53 @@ def index():
 
 @app.route("/api/tools")
 def api_tools():
-    return jsonify({"tools": list_tools(), "categories": list_categories()})
+    return jsonify({
+        "tools": list_tools(),
+        "categories": list_categories(),
+        "runnable": external_tools.RUNNABLE,
+        "availability": external_tools.availability(),
+    })
+
+
+@app.route("/api/external", methods=["POST"])
+def api_external():
+    """Run a real OSINT CLI tool (sherlock/maigret/holehe/phoneinfoga)."""
+    data = request.get_json(silent=True) or {}
+    tool_id = (data.get("tool") or "").strip()
+    value = (data.get("value") or "").strip()
+    if not tool_id or not value:
+        return jsonify({"ok": False, "error": "Paramètres tool et value requis."}), 400
+    started = time.time()
+    result = external_tools.run(tool_id, value)
+    result["elapsed_ms"] = int((time.time() - started) * 1000)
+    return jsonify({"ok": result.get("ok", False), "results": result})
+
+
+@app.route("/api/report", methods=["POST"])
+def api_report():
+    """Build and download a report (JSON or PDF) from the last investigation."""
+    data = request.get_json(silent=True) or {}
+    fmt = (data.get("format") or "json").lower()
+    query = data.get("query") or {}
+    results = data.get("results") or {}
+    photo = data.get("photo")
+    astro = data.get("astronomy")
+    rep = report.build_report(query, results, photo=photo, astro=astro)
+    if fmt == "pdf":
+        try:
+            pdf_bytes = report.to_pdf(rep)
+        except Exception as exc:  # noqa: BLE001
+            return jsonify({"ok": False, "error": f"PDF: {exc}"}), 500
+        from flask import Response
+        resp = Response(pdf_bytes, mimetype="application/pdf")
+        resp.headers["Content-Disposition"] = 'attachment; filename="osint_report.pdf"'
+        return resp
+    # default JSON
+    body = report.to_json(rep)
+    from flask import Response
+    resp = Response(body.encode("utf-8"), mimetype="application/json")
+    resp.headers["Content-Disposition"] = 'attachment; filename="osint_report.json"'
+    return resp
 
 
 def _run_module(module, query, **extra):
@@ -80,6 +142,7 @@ def api_search():
 
     if target["name_full"]:
         results["name"] = _run_module(name_osint, target["name_full"])
+        results["company"] = _run_module(company_osint, target["name_full"])
     if target["email"]:
         results["email"] = _run_module(email_osint, target["email"])
     if target["phone"]:
@@ -87,8 +150,25 @@ def api_search():
     if target["website"]:
         results["website"] = _run_module(web_osint, target["website"])
     if target["username"]:
-        # Reuse the name module's username engine directly when only a username is given.
         results.setdefault("name", _run_module(name_osint, target["username"]))
+
+    # Auto-run real OSINT CLI tools when available, using the best target for each.
+    avail = external_tools.availability()
+    results["external_auto"] = {}
+    username_for_cli = target["username"] or (target["name_full"].split()[-1].lower()
+                                                if target["name_full"] else "")
+    if username_for_cli:
+        for tool_id in ("sherlock", "maigret", "socialscan", "instaloader"):
+            if avail.get(tool_id):
+                results["external_auto"][tool_id] = external_tools.run(tool_id, username_for_cli)
+    if target["email"]:
+        for tool_id in ("holehe", "h8mail"):
+            if avail.get(tool_id):
+                results["external_auto"][tool_id] = external_tools.run(tool_id, target["email"])
+    if target["phone"] and avail.get("phoneinfoga"):
+        results["external_auto"]["phoneinfoga"] = external_tools.run("phoneinfoga", target["phone"])
+    if target["website"] and avail.get("dnstwist"):
+        results["external_auto"]["dnstwist"] = external_tools.run("dnstwist", target["website"])
 
     results["finished_at"] = datetime.now(timezone.utc).isoformat()
     return jsonify({"ok": True, "results": results})

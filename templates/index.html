@@ -172,12 +172,17 @@
     <div class="tab active" data-tab="results">Résultats</div>
     <div class="tab" data-tab="photo">📷 Photo / EXIF / GPS</div>
     <div class="tab" data-tab="astro">🌟 Astronomie / Astres</div>
-    <div class="tab" data-tab="tools">🛠️ Outils intégrés</div>
+    <div class="tab" data-tab="external">⚡ Outils CLI externes</div>
+    <div class="tab" data-tab="tools">🛠️ Catalogue</div>
   </div>
 
   <!-- Results tab -->
   <section id="tab-results">
     <div id="resultsIntro" class="muted">Aucune recherche lancée. Renseignez au moins un critère puis cliquez sur « Lancer la recherche ».</div>
+    <div class="btn-row" id="exportRow" style="display:none">
+      <button class="ghost" id="exportJson">⬇ Exporter rapport (JSON)</button>
+      <button class="ghost" id="exportPdf">⬇ Exporter rapport (PDF)</button>
+    </div>
     <div class="results" id="results"></div>
   </section>
 
@@ -227,6 +232,28 @@
     <p class="muted" style="margin:4px 0 12px">Catalogue des outils open-source et services web exposés par cette plateforme. Chaque outil ouvre son dépôt/service officiel.</p>
     <div class="cat-filter" id="catFilter"></div>
     <div class="tools" id="toolsGrid"></div>
+  </section>
+
+  <!-- External tools tab -->
+  <section id="tab-external" class="hidden">
+    <p class="muted" style="margin:4px 0 10px">Exécution réelle des outils OSINT open-source installés sur le serveur (Sherlock, Maigret, Holehe, PhoneInfoga). La valeur est déduite des critères renseignés ci-dessus.</p>
+    <div id="extAvailability" class="muted" style="margin-bottom:10px;font-size:12px"></div>
+    <div class="search-card">
+      <div class="grid-2">
+        <div>
+          <label>Outil</label>
+          <select id="extTool"></select>
+        </div>
+        <div>
+          <label>Valeur (username / email / téléphone)</label>
+          <input id="extValue" placeholder="octocat">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="primary" id="extRun">⚡ Lancer l'outil CLI</button>
+      </div>
+    </div>
+    <div class="results" id="extResults"></div>
   </section>
 </main>
 
@@ -313,7 +340,7 @@ function renderSearchResults(res){
     'Nom complet':q.name_full||'—','Téléphone':q.phone||'—','Email':q.email||'—',
     'Site':q.website||'—','Username':q.username||'—'
   }));
-  ['name','email','phone','website'].forEach(k=>{
+  ['name','company','email','phone','website'].forEach(k=>{
     if(res[k]) out.appendChild(renderModule(k,res[k]));
   });
 }
@@ -334,20 +361,66 @@ function renderModule(key,data){
 
   if(key==='name'){
     if(data.is_name){
-      html+=`<div class="muted" style="margin-bottom:6px">Username principal: <b>${esc(data.primary_username)}</b></div>`;
+      if(data.candidate_usernames?.length) html+=`<div class="muted" style="margin-bottom:6px">Usernames testés: <b>${data.candidate_usernames.length}</b> — ${data.candidate_usernames.map(esc).join(', ')}</div>`;
       if(data.email_permutations?.length) html+=`<div class="muted">Permutations email possibles: ${data.email_permutations.length}</div>`;
     }
-    if(data.accounts?.length){
-      html+='<ul class="accounts">';
-      data.accounts.forEach(a=>{
-        const cls=a.present===true?'yes':a.present===false?'no':'';
-        const st=a.present===true?'✓ présent':a.present===false?'✕ absent':'? incertain';
-        html+=`<li class="acct ${cls}"><a href="${a.url}" target="_blank" rel="noopener">${esc(a.platform)}</a><span class="st">${st} (${a.status??'-'})</span></li>`;
+    if(data.confirmed_accounts?.length){
+      html+=`<div class="muted" style="margin-top:6px">✓ Comptes confirmés (${data.confirmed_accounts.length})</div><ul class="accounts">`;
+      data.confirmed_accounts.forEach(a=>{
+        html+=`<li class="acct yes"><a href="${a.url}" target="_blank" rel="noopener">${esc(a.platform)}</a><span class="st">✓ présent (${a.status??'-'})</span></li>`;
       });
       html+='</ul>';
     }
+    if(data.candidate_accounts?.length){
+      html+=`<details><summary class="muted">⚠ Candidats à vérifier (${data.candidate_accounts.length})</summary><ul class="accounts">`;
+      data.candidate_accounts.forEach(a=>{
+        html+=`<li class="acct"><a href="${a.url}" target="_blank" rel="noopener">${esc(a.platform)}</a><span class="st">? à vérifier (${a.status??'-'})</span></li>`;
+      });
+      html+='</ul></details>';
+    }
+    if(!data.confirmed_accounts?.length && !data.candidate_accounts?.length && data.accounts?.length){
+      html+=`<div class="muted">Aucun compte détecté automatiquement.</div>`;
+    }
     if(data.email_permutations?.length){
       html+=`<details><summary class="muted">Voir les ${data.email_permutations.length} permutations email</summary><pre>${esc(data.email_permutations.join('\n'))}</pre></details>`;
+    }
+    if(data.search_dorks?.length){
+      html+=`<div class="muted" style="margin-top:8px">Liens de recherche (${data.search_dorks.length})</div>`;
+      html+=links(data.search_dorks);
+    }
+  }
+  if(key==='company'){
+    if(!data.ok){ html+=`<pre>${esc(data.error||'\u00e9chec')}</pre>`; d.innerHTML=html; return d; }
+    html+=`<div class="muted">Donn\u00e9es issues de l'API officielle gouvernementale (recherche-entreprises.api.gouv.fr) \u2014 \u00e9quivalent Pappers, sans cl\u00e9 API.</div>`;
+    if(data.as_dirigeant?.length){
+      html+=`<div class="muted" style="margin-top:8px">\u2713 Dirigeant d\u00e9tect\u00e9 (${data.as_dirigeant.length} entreprise(s))</div><ul class="accounts">`;
+      data.as_dirigeant.forEach(r=>{
+        const dg=r.dirigeant;
+        html+=`<li class="acct yes"><a href="${r.pappers_url}" target="_blank" rel="noopener">${esc(r.entreprise)}</a><span class="st">${esc(dg.prenoms||'')} ${esc(dg.nom||'')} \u2014 ${esc(dg.qualite||'dirigeant')} (${esc(dg.annee_de_naissance||'?')}) \u2014 SIREN ${esc(r.siren)}</span></li>`;
+      });
+      html+='</ul>';
+    }
+    if(data.companies?.length){
+      html+=`<details><summary class="muted">Entreprises correspondantes (${data.companies.length} / ${data.total_results||0} dans la base)</summary>`;
+      data.companies.forEach(c=>{
+        html+=`<div style="border-left:2px solid var(--border);margin:8px 0;padding-left:8px">`;
+        html+=`<div><b>${esc(c.nom_complet)}</b> ${c.etat==='active'?'\u2713':'\u2715 ferm\u00e9e'} \u2014 SIREN ${esc(c.siren)}</div>`;
+        html+=kvHtml({Adresse:c.siege_adresse,CP:c.siege_code_postal,Ville:c.siege_commune,D\u00e9pt:c.siege_departement,Activit\u00e9:c.activite,Cat\u00e9gorie:c.categorie,'Forme':c.nature_juridique,'Cr\u00e9\u00e9e':c.date_creation,Ets:c.nombre_etablissements,'Ets ouverts':c.nombre_etablissements_ouverts,'CA':c.chiffre_affaires??'\u2014','R\u00e9sultat':c.resultat_net??'\u2014','Ann\u00e9e fin.':c.annee_finances||'\u2014'});
+        if(c.dirigeants?.length){
+          html+=`<div class="muted" style="margin-top:4px">Dirigeants:</div><ul class="accounts">`;
+          c.dirigeants.forEach(dg=>{
+            if(dg.type==='personne physique'){
+              html+=`<li class="acct">${esc(dg.prenoms||'')} ${esc(dg.nom||'')} \u2014 ${esc(dg.qualite||'?')} (${esc(dg.annee_de_naissance||'?')})</li>`;
+            } else {
+              html+=`<li class="acct">${esc(dg.nom||'')} (personne morale) \u2014 ${esc(dg.qualite||'?')}</li>`;
+            }
+          });
+          html+='</ul>';
+        }
+        html+=`<div style="margin-top:4px"><a href="${c.pappers_url}" target="_blank" rel="noopener">\u2197 Pappers</a> \u00b7 <a href="${c.infogreffe_url}" target="_blank" rel="noopener">\u2197 Infogreffe</a> \u00b7 <a href="${c.societe_ninja_url}" target="_blank" rel="noopener">\u2197 Societe.ninja</a> \u00b7 <a href="${c.data_inpi_url}" target="_blank" rel="noopener">\u2197 Data INPI</a></div>`;
+        html+=`</div>`;
+      });
+      html+='</details>';
     }
   }
   if(key==='email'){
@@ -372,6 +445,45 @@ function renderModule(key,data){
   d.innerHTML=html; return d;
 }
 
+function renderExternalAuto(ext){
+  const d=document.createElement('div'); d.className='module';
+  let html=`<h3>Outils CLI externes <span class="badge ok">auto</span></h3>`;
+  html+=`<div class="muted" style="margin-bottom:6px">Ces outils (Sherlock, Maigret, Holehe…) sont lancés automatiquement s'ils sont installés sur votre machine. Ils donnent des résultats bien plus fiables que le sondage HTTP.</div>`;
+  for(const tool in ext){
+    const r=ext[tool];
+    if(!r){ continue; }
+    if(r.available===false){
+      html+=`<div class="muted">⚠ ${esc(tool)}: ${esc(r.error||'non installé')}</div>`;
+      continue;
+    }
+    if(r.ok===false){
+      html+=`<div class="muted">⚠ ${esc(tool)}: ${esc(r.error||'échec')}</div>`;
+      continue;
+    }
+    if(r.accounts?.length){
+      html+=`<div class="muted" style="margin-top:6px">✓ ${esc(tool)}: ${r.accounts.length} compte(s) trouvé(s)</div><ul class="accounts">`;
+      r.accounts.forEach(a=>{ html+=`<li class="acct yes"><a href="${a.url}" target="_blank" rel="noopener">${esc(a.platform)}</a><span class="st">${esc(a.url)}</span></li>`; });
+      html+='</ul>';
+    } else if(r.used_on?.length){
+      html+=`<div class="muted" style="margin-top:6px">✓ ${esc(tool)}: email utilisé sur ${r.used_on.length} site(s)</div><ul class="accounts">`;
+      r.used_on.forEach(s=>{ html+=`<li class="acct yes">${esc(s)}</li>`; });
+      html+='</ul>';
+    } else if(r.breaches?.length){
+      html+=`<div class="muted" style="margin-top:6px">⚠ ${esc(tool)}: ${r.breaches.length} résultat(s) de fuite</div><ul class="accounts">`;
+      r.breaches.forEach(b=>{ html+=`<li class="acct">${esc(b.target)} — ${esc(b.status)}</li>`; });
+      html+='</ul>';
+    } else if(r.domains?.length){
+      html+=`<div class="muted" style="margin-top:6px">${esc(tool)}: ${r.domains.length} variante(s) de domaine</div>`;
+    } else if(r.instagram_exists!==undefined){
+      html+=`<div class="muted" style="margin-top:6px">${esc(tool)}: Instagram ${r.instagram_exists?'existe (public)':'introuvable/privé'}</div>`;
+    } else if(r.sections){
+      html+=`<div class="muted" style="margin-top:6px">${esc(tool)}: scan terminé</div>`;
+    } else {
+      html+=`<div class="muted" style="margin-top:6px">${esc(tool)}: ${r.count??0} résultat(s)</div>`;
+    }
+  }
+  d.innerHTML=html; return d;
+}
 function kvHtml(obj){
   let rows='';
   for(const k in obj) rows+=`<div class="k">${esc(k)}</div><div>${obj[k]===0?'0':(obj[k]||'—')}</div>`;
@@ -476,6 +588,125 @@ function renderAstro(a){
   }
   m.innerHTML=html; out.appendChild(m);
 }
+
+/* ===== EXTERNAL CLI TOOLS ===== */
+let RUNNABLE=[]; let lastResults=null; let lastPhoto=null; let lastAstro=null;
+async function loadExternal(){
+  try{
+    const t=await fetch('/api/tools').then(r=>r.json());
+    RUNNABLE=t.runnable||[];
+    const av=t.availability||{};
+    const sel=document.getElementById('extTool'); sel.innerHTML='';
+    RUNNABLE.forEach(r=>{
+      const o=document.createElement('option'); o.value=r.id; o.textContent=r.label;
+      o.disabled=!av[r.id]; if(!av[r.id]) o.textContent+=' (non installé)';
+      sel.appendChild(o);
+    });
+    const avTxt=document.getElementById('extAvailability');
+    avTxt.innerHTML='Disponibilité : ' + RUNNABLE.map(r=>`${r.label.split(' ')[0]} ${av[r.id]?'\u2705':'\u274c'}`).join(' \u00b7 ');
+  }catch(e){ console.error(e); }
+}
+loadExternal();
+document.querySelector('.tab[data-tab="external"]').addEventListener('click',()=>{
+  const u=val('username')||val('first_name')||val('last_name');
+  const emailV=val('email'), phoneV=val('phone');
+  const sel=document.getElementById('extTool');
+  const target=RUNNABLE.find(r=>r.id===sel.value)?.target;
+  if(target==='email') document.getElementById('extValue').value=emailV||u;
+  else if(target==='phone') document.getElementById('extValue').value=phoneV;
+  else document.getElementById('extValue').value=u;
+});
+document.getElementById('extTool').addEventListener('change',()=>document.querySelector('.tab[data-tab="external"]').click());
+
+document.getElementById('extRun').onclick=async()=>{
+  const tool=document.getElementById('extTool').value;
+  const value=document.getElementById('extValue').value.trim();
+  if(!value){ alert('Renseignez une valeur.'); return; }
+  const btn=document.getElementById('extRun'); btn.disabled=true; const old=btn.textContent;
+  btn.innerHTML='<span class="spinner"></span> Exécution en cours...';
+  const out=document.getElementById('extResults'); out.innerHTML='';
+  try{
+    const r=await fetch('/api/external',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tool,value})});
+    const j=await r.json();
+    renderExternal(j.results);
+    if(j.ok){ lastResults = lastResults || {}; lastResults.external = lastResults.external || {}; lastResults.external[tool]=j.results; }
+  }catch(e){ out.innerHTML=errBox(e.message); }
+  finally{ btn.disabled=false; btn.textContent=old; }
+};
+function renderExternal(res){
+  const out=document.getElementById('extResults'); out.innerHTML='';
+  const m=document.createElement('div'); m.className='module';
+  const ok=res.ok!==false;
+  let html=`<h3>${esc(res.tool||'outil')} <span class="badge ${ok?'ok':'err'}">${ok?'exécuté':'erreur'}</span> <span class="badge time">${res.elapsed_ms||0} ms</span></h3>`;
+  if(!ok){
+    html+=`<div class="muted">Non disponible : ${esc(res.error||'')}</div>`;
+    html+=`<div class="muted" style="margin-top:8px;font-size:12px">Installez l'outil pour l'activer :</div>`;
+    const cmds={sherlock:'pip install sherlock-project',maigret:'pip install maigret',socialscan:'pip install socialscan',instaloader:'pip install instaloader',holehe:'pip install holehe',h8mail:'pip install h8mail',phoneinfoga:'pip install phoneinfoga',dnstwist:'pip install dnstwist'};
+    if(cmds[res.tool]) html+=`<pre>${cmds[res.tool]}</pre>`;
+    m.innerHTML=html; out.appendChild(m); return;
+  }
+  if(res.accounts?.length){
+    html+=`<div class="muted">${res.count} comptes trouvés</div><ul class="accounts">`;
+    res.accounts.forEach(a=>{ html+=`<li class="acct yes"><a href="${a.url}" target=_blank rel=noopener>${esc(a.platform)}</a><span class="st">${esc(a.url)}</span></li>`; });
+    html+='</ul>';
+  }
+  if(res.results?.length){  /* socialscan */
+    html+=`<div class="muted">${res.count} résultats (vérification approfondie)</div><ul class="accounts">`;
+    res.results.forEach(a=>{ html+=`<li class="acct ${a.available?'yes':'no'}">${esc(a.platform)}<span class="st">${esc(a.status)}</span></li>`; });
+    html+='</ul>';
+  }
+  if(res.domains?.length){  /* dnstwist */
+    html+=`<div class="muted">${res.count} variants de domaine trouvés</div><ul class="accounts">`;
+    res.domains.slice(0,40).forEach(d=>{ html+=`<li class="acct yes"><a href="http://${d.domain}" target=_blank rel=noopener>${esc(d.domain)}</a><span class="st">${esc(d.type)} ${d.ip?'· '+d.ip:''} ${d.ns?'· NS '+d.ns:''}</span></li>`; });
+    html+='</ul>';
+  }
+  if(res.breaches?.length){  /* h8mail */
+    html+=`<div class="muted">Résultats fuite :</div><ul class="accounts">`;
+    res.breaches.forEach(b=>{ const c=b.status.includes('Not Compromised')?'no':'yes'; html+=`<li class="acct ${c}">${esc(b.target)}<span class="st">${esc(b.status)}</span></li>`; });
+    html+='</ul>';
+  }
+  if(res.instagram_exists!==undefined){  /* instaloader */
+    html+=`<div class="muted">Profil Instagram public : ${res.instagram_exists?'<b style="color:var(--ok)">existant</b>':'<b style="color:var(--err)">introuvable / privé</b>'}</div>`;
+  }
+  if(res.used_on?.length){
+    html+=`<div class="muted">Email utilisé sur (${res.count}) :</div><ul class="accounts">`;
+    res.used_on.forEach(s=>{ html+=`<li class="acct yes">${esc(s)}</li>`; });
+    html+='</ul>';
+  }
+  if(res.sections){
+    for(const k in res.sections){ if(res.sections[k].length){ html+=`<div class="muted" style="margin-top:6px">${esc(k)}</div><pre>${esc(res.sections[k].join('\\n'))}</pre>`; } }
+  }
+  if(res.raw_excerpt){
+    html+=`<details><summary class="muted">Sortie brute</summary><pre>${esc(res.raw_excerpt)}</pre></details>`;
+  }
+  m.innerHTML=html; out.appendChild(m);
+}
+
+/* ===== EXPORT ===== */
+function exportPayload(){
+  const query={ first_name:val('first_name'), last_name:val('last_name'), phone:val('phone'), email:val('email'), website:val('website'), username:val('username') };
+  const name_full=[query.first_name,query.last_name].filter(Boolean).join(' '); query.name_full=name_full;
+  return { query, results: lastResults||{}, photo: lastPhoto, astronomy: lastAstro };
+}
+function downloadBlob(blob, filename){
+  const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url);
+}
+document.getElementById('exportJson').onclick=async()=>{
+  const r=await fetch('/api/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...exportPayload(),format:'json'})});
+  if(!r.ok){ alert('Échec export JSON'); return; }
+  downloadBlob(await r.blob(),'osint_report.json');
+};
+document.getElementById('exportPdf').onclick=async()=>{
+  const r=await fetch('/api/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...exportPayload(),format:'pdf'})});
+  if(!r.ok){ const t=await r.text(); alert('Échec export PDF: '+t); return; }
+  downloadBlob(await r.blob(),'osint_report.pdf');
+};
+const _origRender=renderSearchResults;
+renderSearchResults=function(res){ lastResults=res; document.getElementById('exportRow').style.display='flex'; _origRender(res); };
+const _origRenderPhoto=renderPhoto;
+renderPhoto=function(info){ lastPhoto=info; _origRenderPhoto(info); };
+const _origRenderAstro=renderAstro;
+renderAstro=function(a){ lastAstro=a; _origRenderAstro(a); };
 </script>
 </body>
 </html>

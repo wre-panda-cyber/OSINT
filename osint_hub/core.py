@@ -42,7 +42,7 @@ def safe_get(url, timeout=8, headers=None, **kwargs):
     """requests.get wrapper that never raises; returns (status, text|json, ok)."""
     import requests
 
-    hdrs = {"User-Agent": "OSINT-Hub/1.0 (+research)"}
+    hdrs = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"}
     if headers:
         hdrs.update(headers)
     try:

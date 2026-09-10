@@ -2,6 +2,25 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+env/
 uploads/
 *.log
 .env
+
+# Local artifacts & test outputs
+*.txt
+*.pdf
+*.json
+*.csv
+*.har
+*.pcap
+*.sqlite3
+db.sqlite3
+*.db
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
