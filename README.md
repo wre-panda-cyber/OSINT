@@ -5,6 +5,10 @@ outils open-source de recherche par **nom / prénom**, **téléphone**, **email*
 **entreprise / dirigeant**, **upload de photos** (EXIF / GPS), et le **calcul des positions
 et horaires des astres**.
 
+> **🌐 Accès à l'interface :** l'application est **locale**. Après l'avoir lancée (voir
+> « Démarrage rapide » ci-dessous), ouvrez **http://127.0.0.1:5000** dans votre navigateur.
+> Aucune interface n'est disponible directement sur GitHub.
+
 ## Fonctionnalités
 
 - 🔎 **Barre de recherche unique** : on renseigne un ou plusieurs critères (nom + prénom,
@@ -55,14 +59,50 @@ et horaires des astres**.
 
 ## Démarrage rapide
 
+> ⚠️ **Application locale** : cette interface n'est pas hébergée sur Internet.
+> Elle s'exécute sur **votre propre machine**. GitHub stocke uniquement le code source ;
+> pour faire des recherches, il faut lancer l'application localement puis ouvrir
+> l'adresse dans votre navigateur. L'interface reste accessible **tant que le terminal
+> reste ouvert** et `python app.py` en cours d'exécution.
+
+### 1. Récupérer le code
+
 ```bash
-pip install -r requirements.txt
-python app.py
-# -> http://127.0.0.1:5000
+git clone https://github.com/wre-panda-cyber/OSINT.git
+cd OSINT
 ```
 
+### 2. Créer et activer un environnement virtuel (recommandé)
+
+```bash
+python3 -m venv venv
+source venv/bin/activate   # sur Windows : venv\Scripts\activate
+```
+
+### 3. Installer les dépendances
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Lancer l'application
+
+```bash
+python app.py
+# -> Serving Flask app 'app'
+# -> Running on http://127.0.0.1:5000
+```
+
+### 5. Ouvrir l'interface dans le navigateur
+
+Ouvrez votre navigateur (Safari, Chrome, Firefox…) à l'adresse :
+
+# 🌐 http://127.0.0.1:5000
+
+C'est là que vous effectuez vos recherches OSINT.
+
 > Sur macOS, si le port 5000 est occupé (AirPlay Receiver), utilisez un autre port :
-> `PORT=5005 python app.py`
+> `PORT=5005 python app.py` puis ouvrez `http://127.0.0.1:5005`
 
 ### Activer les outils CLI externes (optionnel mais recommandé)
 
@@ -76,6 +116,14 @@ pip install sherlock-project maigret holehe phoneinfoga socialscan dnstwist h8ma
 
 Ils seront détectés automatiquement au démarrage et lancés pour chaque recherche
 pertinente.
+
+### Mettre à jour l'application
+
+```bash
+git pull origin main
+pip install -r requirements.txt
+# relancer : python app.py
+```
 
 ## API
 
