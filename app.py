@@ -16,6 +16,7 @@ from flask import Flask, jsonify, render_template, request, send_from_directory
 from osint_hub import core, report
 from osint_hub.modules import (
     astronomy,
+    company_osint,
     email_osint,
     external_tools,
     name_osint,
@@ -141,6 +142,7 @@ def api_search():
 
     if target["name_full"]:
         results["name"] = _run_module(name_osint, target["name_full"])
+        results["company"] = _run_module(company_osint, target["name_full"])
     if target["email"]:
         results["email"] = _run_module(email_osint, target["email"])
     if target["phone"]:

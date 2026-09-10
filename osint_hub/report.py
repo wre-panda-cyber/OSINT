@@ -21,6 +21,7 @@ def build_report(query, results, photo=None, astro=None):
         "modules": {
             k: v for k, v in {
                 "name": results.get("name"),
+                "company": results.get("company"),
                 "email": results.get("email"),
                 "phone": results.get("phone"),
                 "website": results.get("website"),

@@ -340,7 +340,7 @@ function renderSearchResults(res){
     'Nom complet':q.name_full||'—','Téléphone':q.phone||'—','Email':q.email||'—',
     'Site':q.website||'—','Username':q.username||'—'
   }));
-  ['name','email','phone','website'].forEach(k=>{
+  ['name','company','email','phone','website'].forEach(k=>{
     if(res[k]) out.appendChild(renderModule(k,res[k]));
   });
 }
@@ -387,6 +387,40 @@ function renderModule(key,data){
     if(data.search_dorks?.length){
       html+=`<div class="muted" style="margin-top:8px">Liens de recherche (${data.search_dorks.length})</div>`;
       html+=links(data.search_dorks);
+    }
+  }
+  if(key==='company'){
+    if(!data.ok){ html+=`<pre>${esc(data.error||'\u00e9chec')}</pre>`; d.innerHTML=html; return d; }
+    html+=`<div class="muted">Donn\u00e9es issues de l'API officielle gouvernementale (recherche-entreprises.api.gouv.fr) \u2014 \u00e9quivalent Pappers, sans cl\u00e9 API.</div>`;
+    if(data.as_dirigeant?.length){
+      html+=`<div class="muted" style="margin-top:8px">\u2713 Dirigeant d\u00e9tect\u00e9 (${data.as_dirigeant.length} entreprise(s))</div><ul class="accounts">`;
+      data.as_dirigeant.forEach(r=>{
+        const dg=r.dirigeant;
+        html+=`<li class="acct yes"><a href="${r.pappers_url}" target="_blank" rel="noopener">${esc(r.entreprise)}</a><span class="st">${esc(dg.prenoms||'')} ${esc(dg.nom||'')} \u2014 ${esc(dg.qualite||'dirigeant')} (${esc(dg.annee_de_naissance||'?')}) \u2014 SIREN ${esc(r.siren)}</span></li>`;
+      });
+      html+='</ul>';
+    }
+    if(data.companies?.length){
+      html+=`<details><summary class="muted">Entreprises correspondantes (${data.companies.length} / ${data.total_results||0} dans la base)</summary>`;
+      data.companies.forEach(c=>{
+        html+=`<div style="border-left:2px solid var(--border);margin:8px 0;padding-left:8px">`;
+        html+=`<div><b>${esc(c.nom_complet)}</b> ${c.etat==='active'?'\u2713':'\u2715 ferm\u00e9e'} \u2014 SIREN ${esc(c.siren)}</div>`;
+        html+=kvHtml({Adresse:c.siege_adresse,CP:c.siege_code_postal,Ville:c.siege_commune,D\u00e9pt:c.siege_departement,Activit\u00e9:c.activite,Cat\u00e9gorie:c.categorie,'Forme':c.nature_juridique,'Cr\u00e9\u00e9e':c.date_creation,Ets:c.nombre_etablissements,'Ets ouverts':c.nombre_etablissements_ouverts,'CA':c.chiffre_affaires??'\u2014','R\u00e9sultat':c.resultat_net??'\u2014','Ann\u00e9e fin.':c.annee_finances||'\u2014'});
+        if(c.dirigeants?.length){
+          html+=`<div class="muted" style="margin-top:4px">Dirigeants:</div><ul class="accounts">`;
+          c.dirigeants.forEach(dg=>{
+            if(dg.type==='personne physique'){
+              html+=`<li class="acct">${esc(dg.prenoms||'')} ${esc(dg.nom||'')} \u2014 ${esc(dg.qualite||'?')} (${esc(dg.annee_de_naissance||'?')})</li>`;
+            } else {
+              html+=`<li class="acct">${esc(dg.nom||'')} (personne morale) \u2014 ${esc(dg.qualite||'?')}</li>`;
+            }
+          });
+          html+='</ul>';
+        }
+        html+=`<div style="margin-top:4px"><a href="${c.pappers_url}" target="_blank" rel="noopener">\u2197 Pappers</a> \u00b7 <a href="${c.infogreffe_url}" target="_blank" rel="noopener">\u2197 Infogreffe</a> \u00b7 <a href="${c.societe_ninja_url}" target="_blank" rel="noopener">\u2197 Societe.ninja</a> \u00b7 <a href="${c.data_inpi_url}" target="_blank" rel="noopener">\u2197 Data INPI</a></div>`;
+        html+=`</div>`;
+      });
+      html+='</details>';
     }
   }
   if(key==='email'){
