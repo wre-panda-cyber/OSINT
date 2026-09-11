@@ -122,6 +122,7 @@ def search(website):
         {"engine": "theHarvester", "url": f"https://github.com/laramies/theHarvester"},
         {"engine": "Wayback Machine", "url": f"https://web.archive.org/web/*/{host}"},
         {"engine": "SecurityHeaders", "url": f"https://securityheaders.com/?q={host}"},
+        {"engine": "DNSChecker (propagation)", "url": f"https://dnschecker.org/#A/{host}"},
     ]
 
     found_dns = sum(1 for v in result["dns"].values() if v and "error" not in v[0])
